@@ -1,0 +1,259 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.fineract.infrastructure.jobs.api;
+
+import static org.apache.fineract.infrastructure.jobs.api.SchedulerJobApiConstants.JOB_DETAIL_RESPONSE_DATA_PARAMETERS;
+import static org.apache.fineract.infrastructure.jobs.api.SchedulerJobApiConstants.JOB_HISTORY_RESPONSE_DATA_PARAMETERS;
+import static org.apache.fineract.infrastructure.jobs.api.SchedulerJobApiConstants.SCHEDULER_RESOURCE_NAME;
+import static org.apache.fineract.infrastructure.jobs.api.SchedulerJobApiConstants.SHORT_NAME_PARAM;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response.Status;
+import jakarta.ws.rs.core.UriInfo;
+import java.util.List;
+import java.util.Objects;
+import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.fineract.command.core.CommandDispatcher;
+import org.apache.fineract.commands.domain.CommandWrapper;
+import org.apache.fineract.commands.service.CommandWrapperBuilder;
+import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
+import org.apache.fineract.infrastructure.core.annotation.AlternativeOperationId;
+import org.apache.fineract.infrastructure.core.api.ApiRequestParameterHelper;
+import org.apache.fineract.infrastructure.core.api.IdTypeResolver;
+import org.apache.fineract.infrastructure.core.config.FineractProperties;
+import org.apache.fineract.infrastructure.core.data.ApiGlobalErrorResponse;
+import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
+import org.apache.fineract.infrastructure.core.exception.UnrecognizedQueryParamException;
+import org.apache.fineract.infrastructure.core.serialization.ApiRequestJsonSerializationSettings;
+import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
+import org.apache.fineract.infrastructure.core.service.Page;
+import org.apache.fineract.infrastructure.core.service.SearchParameters;
+import org.apache.fineract.infrastructure.jobs.command.JobExecuteCommand;
+import org.apache.fineract.infrastructure.jobs.command.JobUpdateCommand;
+import org.apache.fineract.infrastructure.jobs.data.JobDetailData;
+import org.apache.fineract.infrastructure.jobs.data.JobDetailHistoryData;
+import org.apache.fineract.infrastructure.jobs.data.JobExecuteRequest;
+import org.apache.fineract.infrastructure.jobs.data.JobExecuteResponse;
+import org.apache.fineract.infrastructure.jobs.data.JobUpdateRequest;
+import org.apache.fineract.infrastructure.jobs.data.JobUpdateResponse;
+import org.apache.fineract.infrastructure.jobs.service.JobRegisterService;
+import org.apache.fineract.infrastructure.jobs.service.SchedulerJobRunnerReadService;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.springframework.stereotype.Component;
+
+@Path("/v1/jobs")
+@Produces({ MediaType.APPLICATION_JSON })
+@Component
+@RequiredArgsConstructor
+@Tag(name = "SCHEDULER JOB", description = "Batch jobs (also known as cron jobs on Unix-based systems) are a series of back-end jobs executed on a computer at a particular time defined in job's cron expression.\n\n At any point, you can view the list of batch jobs scheduled to run along with other details specific to each job. Manually you can execute the jobs at any point of time.\n\n The scheduler status can be either \"Active\" or \"Standby\". If the scheduler status is Active, it indicates that all batch jobs are running/ will run as per the specified schedule.If the scheduler status is Standby, it will ensure all scheduled batch runs are suspended.")
+public class SchedulerJobApiResource {
+
+    private final SchedulerJobRunnerReadService schedulerJobRunnerReadService;
+    private final JobRegisterService jobRegisterService;
+    private final ApiRequestParameterHelper apiRequestParameterHelper;
+    private final ToApiJsonSerializer<JobDetailData> toApiJsonSerializer;
+    private final ToApiJsonSerializer<JobDetailHistoryData> jobHistoryToApiJsonSerializer;
+    private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
+    private final PlatformSecurityContext context;
+    private final FineractProperties fineractProperties;
+    private final CommandDispatcher dispatcher;
+
+    @GET
+    @Operation(summary = "Retrieve Scheduler Jobs", operationId = "retrieveAllSchedulerJobs", description = "Returns the list of jobs.\n"
+            + "\n" + "Example Requests:\n" + "\n" + "jobs")
+    @AlternativeOperationId("retrieveAll_8")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(array = @ArraySchema(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.GetJobsResponse.class))))
+    public String retrieveAll(@Context final UriInfo uriInfo) {
+        this.context.authenticatedUser().validateHasReadPermission(SCHEDULER_RESOURCE_NAME);
+        final List<JobDetailData> jobDetailDatas = this.schedulerJobRunnerReadService.findAllJobDetails();
+        final ApiRequestJsonSerializationSettings settings = this.apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return this.toApiJsonSerializer.serialize(settings, jobDetailDatas, JOB_DETAIL_RESPONSE_DATA_PARAMETERS);
+    }
+
+    @GET
+    @Path("{" + SchedulerJobApiConstants.JOB_ID + "}")
+    @Operation(summary = "Retrieve a Job", operationId = "retrieveOneSchedulerJob", description = "Returns the details of a Job.\n" + "\n"
+            + "Example Requests:\n" + "\n" + "jobs/5")
+    @AlternativeOperationId("retrieveOne_5")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.GetJobsResponse.class)))
+    public String retrieveOne(@PathParam(SchedulerJobApiConstants.JOB_ID) @Parameter(description = "jobId") final Long jobId,
+            @Context final UriInfo uriInfo) {
+        return retrieveOne(IdTypeResolver.resolveDefault(), Objects.toString(jobId, null), uriInfo);
+    }
+
+    @GET
+    @Path(SHORT_NAME_PARAM + "/{shortName}")
+    @Operation(summary = "Retrieve a Job", description = "Returns the details of a Job bu shortName.\n" + "\n" + "Example Requests:\n"
+            + "\n" + "jobs/short-name/SA_PINT")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.GetJobsResponse.class)))
+    public String retrieveByShortName(
+            @PathParam("shortName") @Parameter(required = true, description = SchedulerJobApiConstants.SHORT_NAME_PARAM) final String shortName,
+            @Context final UriInfo uriInfo) {
+        return retrieveOne(IdTypeResolver.resolve(SHORT_NAME_PARAM), shortName, uriInfo);
+    }
+
+    @GET
+    @Path("{" + SchedulerJobApiConstants.JOB_ID + "}/" + SchedulerJobApiConstants.JOB_RUN_HISTORY)
+    @Operation(summary = "Retrieve Job Run History", description = "Example Requests:\n" + "\n" + "jobs/5/runhistory?offset=0&limit=200")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.GetJobsJobIDJobRunHistoryResponse.class)))
+    public String retrieveHistory(@Context final UriInfo uriInfo,
+            @PathParam(SchedulerJobApiConstants.JOB_ID) @Parameter(description = "jobId") final Long jobId,
+            @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
+            @QueryParam("limit") @Parameter(description = "limit") final Integer limit,
+            @QueryParam("orderBy") @Parameter(description = "orderBy") final String orderBy,
+            @QueryParam("sortOrder") @Parameter(description = "sortOrder") final String sortOrder) {
+        return retrieveHistory(IdTypeResolver.resolveDefault(), Objects.toString(jobId, null), offset, limit, orderBy, sortOrder, uriInfo);
+    }
+
+    @GET
+    @Path(SHORT_NAME_PARAM + "/{shortName}/" + SchedulerJobApiConstants.JOB_RUN_HISTORY)
+    @Operation(summary = "Retrieve Job Run History", description = "Example Requests:\n" + "\n"
+            + "jobs/short-name/SA_PINT/runhistory?offset=0&limit=200")
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.GetJobsJobIDJobRunHistoryResponse.class)))
+    public String retrieveHistoryByShortName(@Context final UriInfo uriInfo,
+            @PathParam("shortName") @Parameter(required = true, description = SchedulerJobApiConstants.SHORT_NAME_PARAM) final String shortName,
+            @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
+            @QueryParam("limit") @Parameter(description = "limit") final Integer limit,
+            @QueryParam("orderBy") @Parameter(description = "orderBy") final String orderBy,
+            @QueryParam("sortOrder") @Parameter(description = "sortOrder") final String sortOrder) {
+        return retrieveHistory(IdTypeResolver.resolve(SHORT_NAME_PARAM), shortName, offset, limit, orderBy, sortOrder, uriInfo);
+    }
+
+    @POST
+    @Path("{" + SchedulerJobApiConstants.JOB_ID + "}")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Run a Job", description = "Manually Execute Specific Job.")
+    @ApiResponse(responseCode = "202", description = "Accepted", content = @Content(schema = @Schema(implementation = JobExecuteResponse.class)))
+    public Response executeJob(@PathParam(SchedulerJobApiConstants.JOB_ID) @Parameter(description = "jobId") final Long jobId,
+            @QueryParam(SchedulerJobApiConstants.COMMAND) @Parameter(description = "command") final String commandParam,
+            JobExecuteRequest request) {
+        return dispatchExecuteJob(jobId, commandParam, request);
+    }
+
+    @POST
+    @Path(SHORT_NAME_PARAM + "/{shortName}")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Run a Job", description = "Manually Execute Specific Job (by short name).")
+    @ApiResponse(responseCode = "202", description = "Accepted", content = @Content(schema = @Schema(implementation = JobExecuteResponse.class)))
+    public Response executeJobByShortName(
+            @PathParam("shortName") @Parameter(required = true, description = SchedulerJobApiConstants.SHORT_NAME_PARAM) final String shortName,
+            @QueryParam(SchedulerJobApiConstants.COMMAND) @Parameter(description = "command") final String commandParam,
+            JobExecuteRequest request) {
+        final Long jobId = schedulerJobRunnerReadService.retrieveId(IdTypeResolver.IdType.SHORT_NAME, shortName);
+        return dispatchExecuteJob(jobId, commandParam, request);
+    }
+
+    private Response dispatchExecuteJob(Long jobId, String commandParam, JobExecuteRequest request) {
+        if (!fineractProperties.getMode().isBatchManagerEnabled()) {
+            return Response.status(Status.METHOD_NOT_ALLOWED).entity(ApiGlobalErrorResponse.invalidInstanceTypeMethod("Batch")).build();
+        }
+        if (!is(commandParam, SchedulerJobApiConstants.COMMAND_EXECUTE_JOB)) {
+            throw new UnrecognizedQueryParamException(SchedulerJobApiConstants.COMMAND, commandParam);
+        }
+        if (request == null) {
+            request = JobExecuteRequest.builder().build();
+        }
+        request.setJobId(jobId);
+        var command = new JobExecuteCommand();
+        command.setPayload(request);
+        JobExecuteResponse response = dispatcher.<JobExecuteRequest, JobExecuteResponse>dispatch(command).get();
+        return Response.status(202).entity(response).build();
+    }
+
+    @PUT
+    @Path("{jobId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Update a Job", description = "Updates the details of a job.")
+    public JobUpdateResponse updateJobDetail(@PathParam("jobId") @Parameter(description = "jobId") final Long jobId,
+            @RequestBody(required = true) @Valid JobUpdateRequest request) {
+        request.setJobId(jobId);
+        var command = new JobUpdateCommand();
+        command.setPayload(request);
+        return dispatcher.<JobUpdateRequest, JobUpdateResponse>dispatch(command).get();
+    }
+
+    @PUT
+    @Path(SHORT_NAME_PARAM + "/{shortName}")
+    @Consumes({ MediaType.APPLICATION_JSON })
+    @Operation(summary = "Update a Job", description = "Updates the details of a job.")
+    @RequestBody(required = true, content = @Content(schema = @Schema(implementation = SchedulerJobApiResourceSwagger.PutJobsJobIDRequest.class)))
+    @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = CommandProcessingResult.class)))
+    public CommandProcessingResult updateJobDetailByShortName(
+            @PathParam("shortName") @Parameter(required = true, description = SchedulerJobApiConstants.SHORT_NAME_PARAM) final String shortName,
+            @Parameter(hidden = true) final String jsonRequestBody) {
+        return updateJobDetail(IdTypeResolver.resolve(SHORT_NAME_PARAM), shortName, jsonRequestBody);
+    }
+
+    private boolean is(final String commandParam, final String commandValue) {
+        return StringUtils.isNotBlank(commandParam) && commandParam.trim().equalsIgnoreCase(commandValue);
+    }
+
+    private String retrieveOne(@NotNull IdTypeResolver.IdType idType, String identifier, UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(SCHEDULER_RESOURCE_NAME);
+        final JobDetailData jobDetailData = schedulerJobRunnerReadService.retrieveOne(idType, identifier);
+        final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return toApiJsonSerializer.serialize(settings, jobDetailData, JOB_DETAIL_RESPONSE_DATA_PARAMETERS);
+    }
+
+    private String retrieveHistory(@NotNull IdTypeResolver.IdType idType, String identifier, Integer offset, Integer limit, String orderBy,
+            String sortOrder, UriInfo uriInfo) {
+        context.authenticatedUser().validateHasReadPermission(SCHEDULER_RESOURCE_NAME);
+        final SearchParameters searchParameters = SearchParameters.builder().limit(limit).offset(offset).orderBy(orderBy)
+                .sortOrder(sortOrder).build();
+        final Page<JobDetailHistoryData> jobHistoryData = schedulerJobRunnerReadService.retrieveJobHistory(idType, identifier,
+                searchParameters);
+        final ApiRequestJsonSerializationSettings settings = apiRequestParameterHelper.process(uriInfo.getQueryParameters());
+        return jobHistoryToApiJsonSerializer.serialize(settings, jobHistoryData, JOB_HISTORY_RESPONSE_DATA_PARAMETERS);
+    }
+
+    private CommandProcessingResult updateJobDetail(@NotNull IdTypeResolver.IdType idType, String identifier, String jsonRequestBody) {
+        Long jobId = schedulerJobRunnerReadService.retrieveId(idType, identifier);
+        final CommandWrapper commandRequest = new CommandWrapperBuilder() //
+                .updateJobDetail(jobId) //
+                .withJson(jsonRequestBody) //
+                .build(); //
+        final CommandProcessingResult result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
+        if (result.getChanges() != null && (result.getChanges().containsKey(SchedulerJobApiConstants.jobActiveStatusParamName)
+                || result.getChanges().containsKey(SchedulerJobApiConstants.cronExpressionParamName))) {
+            this.jobRegisterService.rescheduleJob(jobId);
+        }
+        return result;
+    }
+}

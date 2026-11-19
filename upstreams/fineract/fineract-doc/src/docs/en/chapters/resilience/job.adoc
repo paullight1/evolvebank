@@ -1,0 +1,23 @@
+= Jobs
+
+== `SchedulerWritePlatformService`
+
+TBD
+
+.Retry-able service function `processJobDetailForExecution`
+[source,java]
+----
+include::{rootdir}/fineract-provider/src/main/java/org/apache/fineract/infrastructure/jobs/service/SchedulerWritePlatformServiceJpaRepositoryImpl.java[lines=126..153]
+----
+
+.Fallback function `fallbackProcessJobDetailForExecution`
+[source,java]
+----
+include::{rootdir}/fineract-provider/src/main/java/org/apache/fineract/infrastructure/jobs/service/SchedulerWritePlatformServiceJpaRepositoryImpl.java[lines=155..158]
+----
+
+.Retry configuration for `processJobDetailForExecution`
+[source,properties]
+----
+include::{rootdir}/fineract-provider/src/main/resources/application.properties[lines=601..605]
+----

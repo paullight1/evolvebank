@@ -1,69 +1,64 @@
 # Evolve Bank
 
-**An Evolve-branded multi-currency exchange and cross-border payments development workspace.**
+**Evolve-branded multicurrency banking and exchange development monorepo.**
 
-> **SANDBOX ONLY — No real bank accounts, customer funds, live FX rates, deposits or payouts.** Evolve Bank is a working product *prototype*, not a licensed bank. The name must be legally reviewed before any commercial launch.
+> **SANDBOX ONLY.** No live USD receiving accounts, deposits, exchange execution, bank withdrawals, custody or licensed banking services. Evolve Bank is a prototype name; launch requires a qualified regulated provider and legal approval.
 
-## What is here
+## Repository structure
 
-- `apps/portal/` — runnable green-and-white Evolve Bank demo for USD, NGN, EUR and GBP accounts, an illustrative USD→NGN quote and disabled withdrawal flow.
-- `upstreams/` — **six pinned open-source Git submodules**, linking to the original upstream code with its history and licence intact. These are *not yet integrated banking services*.
-- `upstreams.lock.json` — exact reviewed source names, branches and SHAs.
-- `.github/workflows/upstream-watch.yml` — daily monitor that opens or updates a GitHub issue when upstream source branches change. It does not auto-upgrade financial software.
-- `scripts/brand_upstreams.py` — optional local, presentation-layer **Evolve Bank** branding for NeoBank and Flux sandboxes, preserving attribution.
-- `docs/` — implementation sequence and source/licensing obligations.
+```text
+apps/portal/                   Evolve Bank responsive demo / simulated FX quote
+upstreams/neobank/             Full NeoBank project source snapshot (MIT)
+upstreams/flux/                Full Flux project source snapshot (MIT)
+upstreams/blnk/                Full Blnk ledger source snapshot (Apache-2.0)
+upstreams/fineract/            Full Apache Fineract source snapshot (Apache-2.0)
+upstreams/kudiarc/             Full Kudi Arc source snapshot (MIT)
+upstreams/corridor/            Full Corridor-in-a-Box source snapshot (Apache-2.0)
+scripts/vendor-sources.sh      Repeatable, pinned-source import procedure (GitHub runner)
+scripts/brand_upstreams.py     Presentation-only Evolve branding overlay
+upstreams.lock.json            Source versions, copyright and licence inventory
+docs/                          Integration plan, licence and provenance
+```
 
-## Quick start
+**Independent source snapshots.** All six upstream projects are imported as regular tracked monorepo files—not Git submodules, gitlinks, Git LFS references or GitHub repository links. `git clone https://github.com/paullight1/evolvebank.git` retrieves the complete source snapshot without `--recurse-submodules`. The clone still needs normal package-manager dependencies and, for real transactions, independently authorised bank/payment APIs; “independent” does not mean all third-party runtime dependencies are vendored.
+
+**Import verification:** `git ls-files --stage | grep '^160000 ' || echo 'No Git submodules'` and inspect `upstreams/`. Imported source revisions are listed in [upstreams.lock.json](upstreams.lock.json). The automated watcher compares those pinned revisions to upstream changes; it **does not** overwrite local code.
+
+The original projects' names remain in their copyright/licence notices and technical provenance. Evolve Bank's own presentation layer uses Evolve branding. Original demos and FX example flows remain **sandbox-only**, and none of the sources are a ready-to-launch regulated bank.
+
+## Start Evolve portal
+
+Node.js 20+:
 
 ```bash
 git clone https://github.com/paullight1/evolvebank.git
 cd evolvebank
 npm test
 npm run start:portal
-# Open http://localhost:4173
+# Visit http://localhost:4173
 ```
 
-No dependencies are required for the Evolve demo beyond Node.js 20+. The quote is deliberately fictitious: **1 USD = ₦1,000, with a $1 example fee**. It cannot execute.
+The portal uses a **deliberately fictitious** `$1 = ₦1,000` rate and a `$1` demonstration fee. No funds move, and withdrawal actions are disabled.
 
-## Get the upstream source code
+## Core banking architecture
 
-```bash
-git submodule update --init --recursive --jobs 4
-# For local presentation-only white-labelling (optional):
-python3 scripts/brand_upstreams.py
-```
+Choose **one** ledger of record, tentatively Blnk; treat Fineract as an alternative, not a second balance authority. Use approved financial institutions for real USD receiving accounts, currency conversion and NGN payouts. Follow [integration plan](docs/INTEGRATION_PLAN.md) for KYC, regulatory obligations, provider reconciliation, and release gates.
 
-A clone without `--recurse-submodules` contains only pointers; clone with:
+## Responsible source reuse
 
-```bash
-git clone --recurse-submodules https://github.com/paullight1/evolvebank.git
-```
+| Project | Licence | Intended role |
+| --- | --- | --- |
+| [NeoBank](https://github.com/dawidolko/NeoBank-Platform-Nuxt) | MIT | Retail banking UX and transfer/ledger reference |
+| [Flux](https://github.com/SamABZD/flux) | MIT | Multicurrency user experience |
+| [Blnk](https://github.com/blnkfinance/blnk) | Apache-2.0 | Ledger evaluation |
+| [Apache Fineract](https://github.com/apache/fineract) | Apache-2.0 | Full core banking alternative |
+| [Kudi Arc](https://github.com/KudiArc/kudi-arc) | MIT | Crypto FX testnet research |
+| [Corridor-in-a-Box](https://github.com/corridor-in-a-box/corridor-in-a-box) | Apache-2.0 | Cross-border orchestration reference |
 
-**Important:** Git submodules reference the exact complete upstream repositories; their source files are downloaded to your computer when initialized. They are **not copied as ordinary tracked files inside evolvebank**. This reduces duplicate code, protects provenance and lets the six projects be monitored safely.
+`davidakpele/epay-payment-system` is excluded because no licence permitting reuse was verified. Every included source retains its own licence, copyright and NOTICE documents as present. There is no endorsement or affiliation with their maintainers. See [provenance](docs/LICENCES_AND_PROVENANCE.md).
 
-## Source components
+## Updating source snapshots
 
-| Path | Project | Licence | Purpose |
-| --- | --- | --- | --- |
-| `upstreams/neobank` | [dawidolko/NeoBank-Platform-Nuxt](https://github.com/dawidolko/NeoBank-Platform-Nuxt) | MIT | Retail banking demo UI and double-entry ledger reference |
-| `upstreams/flux` | [SamABZD/flux](https://github.com/SamABZD/flux) | MIT | Multicurrency finance UX reference |
-| `upstreams/blnk` | [blnkfinance/blnk](https://github.com/blnkfinance/blnk) | Apache-2.0 | Candidate ledger system of record |
-| `upstreams/fineract` | [apache/fineract](https://github.com/apache/fineract) | Apache-2.0 | Alternative full core banking system; evaluation only |
-| `upstreams/kudiarc` | [KudiArc/kudi-arc](https://github.com/KudiArc/kudi-arc) | MIT | Crypto FX/remittance sandbox research; not live |
-| `upstreams/corridor` | [corridor-in-a-box/corridor-in-a-box](https://github.com/corridor-in-a-box/corridor-in-a-box) | Apache-2.0 | Cross-border transfer state-machine reference |
+The daily GitHub watcher opens an issue for review when any upstream head changes. Updates are **not automatic**. Confirm licences/security, manually import the intended pinned commit in a review branch, reconcile brand overlays, and run independent tests before approval.
 
-The unlicensed `davidakpele/epay-payment-system` is **not imported** because no usable licensing grant was verified. Ask its author to add a licence or grant permission before copying/white-labelling.
-
-## System design
-
-Do **not** wire multiple separate systems to maintain spendable balances. Select **one** source-of-truth ledger (initial candidate: Blnk), use an approved financial provider for actual USD account issuance/FX/NGN bank payouts, and implement compliance, provider idempotency, signed webhooks and daily reconciliation before enabling real transfers. See [Implementation plan](docs/INTEGRATION_PLAN.md).
-
-## Updates
-
-The GitHub Action checks upstream default/selected branches once per day. When newer commits exist it updates an issue for human review; it **does not** update submodule pointers or automatically deploy unreviewed changes.
-
-## Attribution
-
-Each source remains licensed under its own terms. Do not delete `LICENSE`, `NOTICE`, copyright notices, or required attribution, and do not imply the maintainers endorse Evolve Bank. See [Licences and provenance](docs/LICENCES_AND_PROVENANCE.md).
-
-**Evolve Bank** — *Money without borders, responsibly built.*
+**Evolve Bank — money without borders, responsibly built.**

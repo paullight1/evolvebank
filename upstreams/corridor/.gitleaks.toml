@@ -1,0 +1,44 @@
+# Gitleaks configuration for corridor-in-a-box.
+# Extends the default ruleset and adds a rule for Stellar secret seeds, which the
+# defaults do not know about. `CORRIDOR_SIGNER_SECRET` and `ATTESTER_SECRET` are
+# S-seeds, so one pushed in a PR must fail CI.
+
+title = "corridor-in-a-box gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "stellar-secret-seed"
+description = "Stellar secret seed (S...) detected"
+regex = '''\bS[A-Z2-7]{55}\b'''
+entropy = 3.5
+keywords = ["s"]
+tags = ["key", "stellar", "secret"]
+
+# Known public values only. Each entry is a specific, documented non-secret, never a
+# pattern: a loose pattern here would let a real seed through.
+#
+# Global (every rule) on purpose: the same public seed also trips the default
+# `generic-api-key` rule when it sits in a shell assignment. And `[allowlist]`
+# rather than `[[allowlists]]` + `targetRules`: CI (ci.yml) pins gitleaks
+# 8.24.3, which has no top-level `[[allowlists]]` and silently ignores that table.
+[allowlist]
+description = "Public testnet fixtures"
+regexes = [
+  # The Anchor Platform reference server's testnet distribution account seed,
+  # shipped in the public image (examples/fund-testnet-sender.ts).
+  '''SAJW2O2NH5QMMVWYAN352OEXS2RUY675A2HPK5HEG2FRR2NXPYA4OLYN''',
+]
+
+# The generic high-entropy rule trips on public keys (G...) and fixtures in tests. Only
+# that rule is relaxed there; `stellar-secret-seed` still applies to tests/.
+# Declared as an override of the default rule (same id, allowlist only), which
+# gitleaks merges into the default definition: 8.24.3 ignores a top-level
+# `[[allowlists]]` with `targetRules`.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Test fixtures: public keys and sample values"
+paths = ['''^tests/''']

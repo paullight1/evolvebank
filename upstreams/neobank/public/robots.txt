@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /register
+
+Disallow: /dashboard
+Disallow: /accounts
+Disallow: /transactions
+Disallow: /transfer
+Disallow: /beneficiaries
+Disallow: /profile
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://neobank.dawidolko.pl/sitemap.xml

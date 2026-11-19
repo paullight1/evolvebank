@@ -1,0 +1,68 @@
+# Publishes @corridor/cli to npm when a `cli-vX.Y.Z` tag is pushed (or manually
+# via workflow_dispatch). Needs one repo secret: NPM_TOKEN (an npm automation
+# token with publish rights). `--provenance` attests the package was built from
+# this repo/workflow, which requires the id-token permission below.
+name: release-cli
+on:
+  push:
+    tags: ["cli-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm --provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history + tags: the version-match check below looks up tags
+          # by commit SHA, which the default shallow (fetch-depth: 1) clone
+          # would not have for anything but a tag-triggered push.
+          fetch-depth: 0
+      # Version comes from package.json "packageManager" (pnpm@9.x); do not also
+      # pass `version:` here or action-setup errors on the duplicate.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+
+      # Never publish a broken build: full test suite, then build the bundle
+      # and smoke-test the actual artifact that will ship.
+      - run: pnpm test
+      - run: pnpm --filter @corridor/cli build
+      - name: Smoke-test the built bin
+        run: node packages/cli/dist/index.js validate corridors/reference.corridor.yaml
+
+      # Unconditional on BOTH trigger types — a manual workflow_dispatch run
+      # used to skip this entirely (the `if` only matched a tag-triggered
+      # ref) and fall straight through to `npm publish` with no check at
+      # all. Now a dispatch run must have an existing `cli-v*` tag pointing
+      # at this exact commit, same invariant either way: publish only what a
+      # reviewed, tagged release actually names.
+      - name: Check a matching tag exists on this commit
+        run: |
+          pkg="$(node -p "require('./packages/cli/package.json').version")"
+          if [[ "$GITHUB_REF" == refs/tags/cli-v* ]]; then
+            tag="${GITHUB_REF_NAME#cli-v}"
+          else
+            tag="$(git tag --points-at "$GITHUB_SHA" | grep '^cli-v' | sed 's/^cli-v//' | head -n1)"
+          fi
+          if [ -z "$tag" ]; then
+            echo "no cli-v* tag points at this commit ($GITHUB_SHA)" >&2
+            exit 1
+          fi
+          if [ "$tag" != "$pkg" ]; then
+            echo "tag cli-v$tag does not match packages/cli version $pkg" >&2
+            exit 1
+          fi
+
+      - run: npm publish --provenance --access public
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

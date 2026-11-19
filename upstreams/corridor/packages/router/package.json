@@ -1,0 +1,59 @@
+{
+  "name": "@corridor/router",
+  "version": "0.1.0",
+  "description": "Resolve the best corridor route for a payment intent across anchors, quotes and fees.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corridor-in-a-box/corridor-in-a-box.git",
+    "directory": "packages/router"
+  },
+  "bugs": {
+    "url": "https://github.com/corridor-in-a-box/corridor-in-a-box/issues"
+  },
+  "homepage": "https://github.com/corridor-in-a-box/corridor-in-a-box#readme",
+  "keywords": [
+    "stellar",
+    "corridor",
+    "router",
+    "routing",
+    "quote"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "source": "./src/testing.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@corridor/types": "workspace:*",
+    "@corridor/manifest": "workspace:*",
+    "@corridor/adapter-kit": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "^2.1.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  }
+}

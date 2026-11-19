@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://neobank:neobank@localhost:5432/neobank_test?schema=public
+  NUXT_SESSION_SECRET: ci-secret-not-used-in-production
+
+jobs:
+  verify:
+    name: Lint, typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: neobank
+          POSTGRES_PASSWORD: neobank
+          POSTGRES_DB: neobank_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U neobank"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs postinstall (nuxt prepare + prisma generate), which needs
+      # a parseable DATABASE_URL — the env block above provides it.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Verify the seed is idempotent
+        run: |
+          npm run db:seed
+          npm run db:seed
+
+      # Runs last: the integration suite creates and removes its own accounts,
+      # so the ledger must still reconcile once that traffic has been through.
+      - name: Verify the ledger reconciles
+        run: npm run db:verify
+
+      - name: Production build
+        run: npm run build
+
+  docker:
+    name: Build and boot the container stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .tools/docker/Dockerfile
+          target: runtime
+          push: false
+          load: true
+          tags: neobank:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot the stack and wait for health
+        env:
+          # In production the app is exposed on 8120 (behind nginx), but this step
+          # queries localhost:3000. Without an explicit APP_PORT, compose would take the
+          # default value and nothing would be listening on the port we check.
+          APP_PORT: '3000'
+          POSTGRES_USER: neobank
+          POSTGRES_PASSWORD: neobank-ci
+          POSTGRES_DB: neobank_production
+          NUXT_SESSION_SECRET: ci-secret-not-used-in-production
+          SEED_ON_BOOT: 'true'
+          SEED_ADMIN_PASSWORD: Admin12345!
+          SEED_CUSTOMER_PASSWORD: Customer12345!
+        run: |
+          docker compose -f .tools/docker/docker-compose.prod.yml up --build -d
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+              echo "Application is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Application failed to become healthy in time."
+          docker compose -f .tools/docker/docker-compose.prod.yml logs --tail=120
+          exit 1
+
+      - name: Smoke-test the running container
+        run: |
+          set -e
+          curl -fsS http://localhost:3000/ > /dev/null
+          curl -fsS -X POST http://localhost:3000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"admin@neobank.dev","password":"Admin12345!"}' > /dev/null
+          echo "Landing page and sign-in both responded."
+
+      - name: Tear down
+        if: always()
+        env:
+          POSTGRES_USER: neobank
+          POSTGRES_PASSWORD: neobank-ci
+          NUXT_SESSION_SECRET: ci-secret-not-used-in-production
+        run: docker compose -f .tools/docker/docker-compose.prod.yml down -v

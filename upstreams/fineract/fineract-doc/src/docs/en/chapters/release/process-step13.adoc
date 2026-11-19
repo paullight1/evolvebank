@@ -1,0 +1,9 @@
+= Step 13: Close Release Branch
+
+== Description
+
+As discussed in https://issues.apache.org/jira/browse/FINERACT-1154[FINERACT-1154], now that everything is final, create a PR to merge the release branch into our main integration branch (`develop`).
+
+This merge ensures all future commits and releases descend from the tagged commit used to build this release.
+
+After merging, check your work with `git describe`. The output must refer to the most recent release. For example, if your working copy is checked out to the `develop` branch, the current commit is `0762a012e`, and the latest release tag (28 commits ago) was `1.12.1`, the output of `git describe` will be `1.12.1-28-g0762a012e`.

@@ -1,0 +1,153 @@
+# Runs a WHOLE corridor — quote → comply → open → settle → reconcile →
+# completed — against the Anchor Platform reference stack we stand up
+# ourselves, so "the corridor works end to end" is re-checked on a schedule
+# rather than being a claim someone made once.
+#
+# Deliberately separate from nightly-live-anchor.yml: that job probes a real
+# third-party anchor read-only, this one owns both ends and settles. It is slow
+# (the stack takes minutes to come up), so it runs on its own schedule and by
+# hand, never on push.
+name: reference-corridor
+on:
+  workflow_dispatch:
+  schedule:
+    # Offset from nightly-live-anchor (04:17) so the two never contend.
+    - cron: "43 5 * * *"
+
+jobs:
+  corridor:
+    runs-on: ubuntu-latest
+    # The stack is minutes to boot and the corridor waits on the observer's own
+    # cadence, but a hung container must not burn an hour of runner time.
+    timeout-minutes: 30
+    # Job-level, deliberately. The `secrets` context is NOT available in a
+    # step-level `if:` — using it there is not a no-op, it makes the whole
+    # workflow file invalid, and GitHub then fails every run at 0s without ever
+    # starting a step. Same fix as nightly-live-anchor.yml and attest-anchors.yml.
+    env:
+      SIGNER_SECRET: ${{ secrets.CORRIDOR_SIGNER_SECRET }}
+      # The account the reference anchor receives on, and the one the signer is
+      # topped up from. The image ships its own, but that account's seed is
+      # public, so anyone can merge it out from under us (someone did on
+      # 2026-11-16, and every settle failed op_no_destination). This one only
+      # this repo holds.
+      DISTRIBUTION_SECRET: ${{ secrets.REFERENCE_DISTRIBUTION_SECRET }}
+      # The corridor this job runs. Asserted to be testnet below before
+      # anything is signed.
+      MANIFEST: corridors/reference.corridor.yaml
+      # Never set. The runners' mainnet guard is the backstop; this is the
+      # first line, and it is here so a future edit to this file has to
+      # remove it deliberately rather than merely forget it.
+      CORRIDOR_ALLOW_MAINNET: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # --- guards, before anything is stood up or signed -------------------
+
+      # Testnet only. Parsed with the repo's own manifest loader rather than
+      # grepped, so a restructured YAML cannot slip a mainnet corridor past a
+      # pattern match.
+      - name: Refuse a non-testnet corridor
+        run: pnpm exec tsx scripts/assert-testnet-corridor.ts "$MANIFEST"
+
+      # Preflight checks: ensure runner commands exist before spinning up
+      # containers or attempting testnet settlement.
+      - name: Check the corridor runner's prerequisites
+        run: |
+          set -euo pipefail
+          missing=""
+          grep -q 'doctor)' scripts/reference-anchor.sh \
+            || missing="$missing scripts/reference-anchor.sh#doctor(#40)"
+          node -e 'process.exit(require("./package.json").scripts["verify:corridor"] ? 0 : 1)' \
+            || missing="$missing pnpm-verify:corridor(#41)"
+          if [ -n "$missing" ]; then
+            echo "::error::this job needs, and cannot find:$missing"
+            exit 1
+          fi
+
+      - name: Fail early without a signing key
+        if: ${{ env.SIGNER_SECRET == '' }}
+        run: |
+          echo "::error::CORRIDOR_SIGNER_SECRET is not set. A full corridor settles on" \
+               "testnet and cannot run unsigned — set the repository secret to a funded" \
+               "testnet seed."
+          exit 1
+
+      - name: Fail early without the anchor's receiving key
+        if: ${{ env.DISTRIBUTION_SECRET == '' }}
+        run: |
+          echo "::error::REFERENCE_DISTRIBUTION_SECRET is not set. The reference anchor needs" \
+               "a receiving account only this repo controls — set the repository secret to" \
+               "a testnet seed; pnpm prepare:distribution creates the account."
+          exit 1
+
+      # --- the run ---------------------------------------------------------
+
+      # Before `up`, so reference-anchor.sh can point the anchor's config at it.
+      # Writes DISTRIBUTION_ACCOUNT to $GITHUB_ENV.
+      - name: Prepare the anchor's receiving account
+        run: pnpm prepare:distribution
+
+      - name: Stand up the reference anchor
+        run: scripts/reference-anchor.sh up
+        env:
+          # Podman ships on the ubuntu-latest image, and the script's container
+          # wiring (network aliases the platform's test profile hardcodes) is
+          # written against it. Porting those steps to Docker would fork that
+          # wiring in two places and let CI and a contributor's laptop drift —
+          # the thing this job exists to prevent.
+          READY_TIMEOUT_SECS: "600"
+
+      - name: Health gate
+        run: scripts/reference-anchor.sh doctor
+
+      # Every run settles 10 testnet USDC from the signer into the anchor's
+      # receiving account, so the USDC goes round in a loop: this step pays it
+      # back from that account (DISTRIBUTION_SECRET, job env) when the signer
+      # runs low. FUND_AMOUNT is kept below FUND_MIN_BALANCE so the receiving
+      # account always holds enough to pay it: by the time the signer drops
+      # under 50, at least 30 has landed on the other side.
+      - name: Top up the signer
+        run: pnpm fund:testnet
+        env:
+          CORRIDOR_SIGNER_SECRET: ${{ env.SIGNER_SECRET }}
+          FUND_AMOUNT: "30"
+          FUND_MIN_BALANCE: "50"
+
+      # payout-watch plays the anchor's payout operator: the reference server
+      # only pays a SEP-31 transaction out when its test endpoint is called (see
+      # reference-anchor.sh). Its log lands next to the platform logs.
+      - name: Run the corridor to completed
+        run: |
+          set -euo pipefail
+          mkdir -p anchor-logs
+          scripts/reference-anchor.sh payout-watch > anchor-logs/payout-watch.log 2>&1 &
+          watcher=$!
+          trap 'kill "$watcher" 2>/dev/null || true' EXIT
+          pnpm verify:corridor
+        env:
+          CORRIDOR_SIGNER_SECRET: ${{ env.SIGNER_SECRET }}
+
+      # --- evidence and cleanup -------------------------------------------
+
+      - name: Collect platform logs
+        if: ${{ failure() }}
+        run: scripts/reference-anchor.sh logs-dump anchor-logs
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ failure() }}
+        with:
+          name: reference-anchor-logs-${{ github.run_id }}
+          path: anchor-logs/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Tear down
+        if: ${{ always() }}
+        run: scripts/reference-anchor.sh down
