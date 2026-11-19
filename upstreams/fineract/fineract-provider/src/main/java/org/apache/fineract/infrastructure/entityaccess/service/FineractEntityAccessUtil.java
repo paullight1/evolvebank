@@ -1,0 +1,126 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.fineract.infrastructure.entityaccess.service;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
+import org.apache.fineract.infrastructure.codes.service.CodeValueReadPlatformService;
+import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationConstants;
+import org.apache.fineract.infrastructure.configuration.data.GlobalConfigurationPropertyData;
+import org.apache.fineract.infrastructure.configuration.domain.GlobalConfigurationRepositoryWrapper;
+import org.apache.fineract.infrastructure.entityaccess.data.FineractOfficeEntityAccessData;
+import org.apache.fineract.infrastructure.entityaccess.domain.FineractEntityAccessType;
+import org.apache.fineract.infrastructure.entityaccess.domain.FineractEntityRelation;
+import org.apache.fineract.infrastructure.entityaccess.domain.FineractEntityRelationRepositoryWrapper;
+import org.apache.fineract.infrastructure.entityaccess.domain.FineractEntityToEntityMapping;
+import org.apache.fineract.infrastructure.entityaccess.domain.FineractEntityToEntityMappingRepository;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.useradministration.domain.AppUser;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class FineractEntityAccessUtil {
+
+    private final PlatformSecurityContext context;
+    private final GlobalConfigurationRepositoryWrapper globalConfigurationRepository;
+    private final CodeValueReadPlatformService codeValueReadPlatformService;
+    private final CodeValueRepositoryWrapper codeValueRepository;
+    private final FineractEntityAccessReadService fineractEntityAccessReadService;
+    private final FineractEntityRelationRepositoryWrapper fineractEntityRelationRepositoryWrapper;
+    private final FineractEntityToEntityMappingRepository fineractEntityToEntityMappingRepository;
+
+    @Autowired
+    public FineractEntityAccessUtil(final PlatformSecurityContext context,
+            final GlobalConfigurationRepositoryWrapper globalConfigurationRepository,
+            final CodeValueReadPlatformService codeValueReadPlatformService, final CodeValueRepositoryWrapper codeValueRepository,
+            final FineractEntityAccessReadService fineractEntityAccessReadService,
+            final FineractEntityRelationRepositoryWrapper fineractEntityRelationRepositoryWrapper,
+            final FineractEntityToEntityMappingRepository fineractEntityToEntityMappingRepository) {
+        this.context = context;
+        this.globalConfigurationRepository = globalConfigurationRepository;
+        this.codeValueReadPlatformService = codeValueReadPlatformService;
+        this.codeValueRepository = codeValueRepository;
+        this.fineractEntityAccessReadService = fineractEntityAccessReadService;
+        this.fineractEntityRelationRepositoryWrapper = fineractEntityRelationRepositoryWrapper;
+        this.fineractEntityToEntityMappingRepository = fineractEntityToEntityMappingRepository;
+    }
+
+    @Transactional
+    @CacheEvict(value = FineractEntityAccessReadServiceImpl.OFFICE_ENTITY_ACCESS_CACHE_NAME, allEntries = true)
+    public void checkConfigurationAndAddProductResrictionsForUserOffice(final FineractEntityAccessType fineractEntityAccessType,
+            final Long productOrChargeId) {
+
+        AppUser thisUser = this.context.authenticatedUser();
+
+        // check if the office specific products are enabled. If yes, then save
+        // this product or charge against a specific office
+        // i.e. this product or charge is specific for this office.
+
+        final GlobalConfigurationPropertyData property = this.globalConfigurationRepository
+                .findOneByNameWithNotFoundDetection(GlobalConfigurationConstants.OFFICE_SPECIFIC_PRODUCTS_ENABLED);
+        if (property.isEnabled()) {
+            // If this property is enabled, then Fineract need to restrict
+            // access to this loan product to only the office of the current
+            // user
+            final GlobalConfigurationPropertyData restrictToUserOfficeProperty = this.globalConfigurationRepository
+                    .findOneByNameWithNotFoundDetection(GlobalConfigurationConstants.RESTRICT_PRODUCTS_TO_USER_OFFICE);
+
+            if (restrictToUserOfficeProperty.isEnabled()) {
+                final Long officeId = thisUser.getOffice().getId();
+                LocalDate startDateFormapping = null;
+                LocalDate endDateFormapping = null;
+                FineractEntityRelation fineractEntityRelation = fineractEntityRelationRepositoryWrapper
+                        .findOneByCodeName(fineractEntityAccessType.getStr());
+                Long relId = fineractEntityRelation.getId();
+                final FineractEntityRelation mapId = this.fineractEntityRelationRepositoryWrapper.findOneWithNotFoundDetection(relId);
+                final FineractEntityToEntityMapping newMap = FineractEntityToEntityMapping.newMap(mapId, officeId, productOrChargeId,
+                        startDateFormapping, endDateFormapping);
+                this.fineractEntityToEntityMappingRepository.save(newMap);
+            }
+        }
+
+    }
+
+    public <T> List<T> filterVisibleToOffice_ifGlobalConfigEnabled(final FineractEntityAccessType accessType, final Long officeId,
+            final Collection<T> entities, final Function<T, Long> idExtractor) {
+        final GlobalConfigurationPropertyData property = this.globalConfigurationRepository
+                .findOneByNameWithNotFoundDetection(GlobalConfigurationConstants.OFFICE_SPECIFIC_PRODUCTS_ENABLED);
+        if (!property.isEnabled()) {
+            return new ArrayList<>(entities);
+        }
+        final FineractOfficeEntityAccessData access = officeId != null
+                ? this.fineractEntityAccessReadService.retrieveOfficeEntityAccess(accessType, officeId, false)
+                : this.fineractEntityAccessReadService.retrieveOfficeEntityAccess(accessType,
+                        this.context.authenticatedUser().getOffice().getId(), true);
+        return entities.stream().filter(entity -> access.isVisible(idExtractor.apply(entity))).collect(Collectors.toList());
+    }
+
+    public boolean isVisibleToOffice_ifGlobalConfigEnabled(final FineractEntityAccessType accessType, final Long officeId,
+            final Long entityId) {
+        return !filterVisibleToOffice_ifGlobalConfigEnabled(accessType, officeId, List.of(entityId), Function.identity()).isEmpty();
+    }
+}

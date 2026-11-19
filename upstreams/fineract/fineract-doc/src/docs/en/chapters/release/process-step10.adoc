@@ -1,0 +1,5 @@
+= Step 10: Start Vote
+
+== Description
+
+Initiate voting via https://releases.apache.org[ATR (Apache Trusted Releases)].

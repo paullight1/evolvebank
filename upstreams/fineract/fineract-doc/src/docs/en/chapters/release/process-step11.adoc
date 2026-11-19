@@ -1,0 +1,5 @@
+= Step 11: Finish Vote
+
+== Description
+
+Conclude voting via https://releases.apache.org[ATR (Apache Trusted Releases)].

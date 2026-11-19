@@ -1,0 +1,16 @@
+= Step 8: Upload Distribution Staging
+
+== Description
+
+Next we'll stage the release candidate. Create a new folder and add these files:
+
+* apache-fineract-bin-{revnumber}.tar.gz
+* apache-fineract-bin-{revnumber}.tar.gz.sha512
+* apache-fineract-bin-{revnumber}.tar.gz.asc
+* apache-fineract-src-{revnumber}.tar.gz
+* apache-fineract-src-{revnumber}.tar.gz.sha512
+* apache-fineract-src-{revnumber}.tar.gz.asc
+
+These files (or "artifacts") comprise the release candidate.
+
+Upload these files to ATR. The `rsync` method seems to work best. After the upload completes, automated checks will run.
