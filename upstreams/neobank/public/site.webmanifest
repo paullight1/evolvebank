@@ -1,6 +1,6 @@
 {
-  "name": "NeoBank — Digital Banking Platform",
-  "short_name": "NeoBank",
+  "name": "Evolve Bank — Banking Sandbox",
+  "short_name": "Evolve Bank",
   "description": "Multi-currency accounts, instant transfers and a complete transaction history.",
   "start_url": "/dashboard",
   "scope": "/",

@@ -39,7 +39,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     sessionTtlHours: '720', // NUXT_SESSION_TTL_HOURS — 30 days
     public: {
-      appName: 'NeoBank',
+      appName: 'Evolve Bank',
     },
   },
 
@@ -78,12 +78,12 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'NeoBank — Digital Banking Platform',
+      title: 'Evolve Bank — Banking Sandbox',
       htmlAttrs: { lang: 'en' },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'theme-color', content: '#3b5bfd' },
+        { name: 'theme-color', content: '#087443' },
         { name: 'referrer', content: 'strict-origin-when-cross-origin' },
       ],
       link: [
@@ -104,7 +104,7 @@ export default defineNuxtConfig({
           innerHTML: `(()=>{try{var t=localStorage.getItem('neobank-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}})()`,
           tagPosition: 'head',
         },
-        { src: '/a11y/a11y-panel.js', defer: true, 'data-accent': '#3b5bfd' },
+        { src: '/a11y/a11y-panel.js', defer: true, 'data-accent': '#087443' },
       ],
     },
     pageTransition: { name: 'page', mode: 'out-in' },

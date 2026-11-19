@@ -36,8 +36,8 @@ watch(() => route.fullPath, () => { menuOpen.value = false })
     <header class="topbar">
       <div class="container topbar-inner">
         <NuxtLink to="/dashboard" class="brand">
-          <span class="brand-mark">N</span>
-          <span class="brand-name">NeoBank</span>
+          <span class="brand-mark">E</span>
+          <span class="brand-name">Evolve Bank</span>
         </NuxtLink>
 
         <nav id="primary-nav" class="nav" :class="{ 'nav-open': menuOpen }" aria-label="Primary">

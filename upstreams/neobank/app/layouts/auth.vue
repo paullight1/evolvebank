@@ -3,8 +3,8 @@
     <a href="#main" class="skip-link">Skip to content</a>
     <main id="main" class="auth-panel">
       <NuxtLink to="/" class="brand">
-        <span class="brand-mark">N</span>
-        <span>NeoBank</span>
+        <span class="brand-mark">E</span>
+        <span>Evolve Bank</span>
       </NuxtLink>
       <slot />
     </main>
