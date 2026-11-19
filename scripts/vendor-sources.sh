@@ -106,7 +106,7 @@ if git ls-files --stage | awk '$1=="160000" {bad=1;print "Gitlink remains:", $4}
 fi
 for entry in "${ENTRIES[@]}"; do
   IFS='|' read -r ID PATH_IN_REPO REPOSITORY TRACKED_BRANCH PINNED_SHA LICENCE <<< "$entry"
-  git ls-files "$PATH_IN_REPO" | grep -q . || { echo "::error::No imported files in $PATH_IN_REPO"; exit 1; }
+  COUNT="$(git ls-files -- "$PATH_IN_REPO" | wc -l | tr -d ' ')"; if [[ "$COUNT" -lt 10 ]]; then echo "::error::Insufficient imported files in $PATH_IN_REPO"; exit 1; fi
   echo "VERIFIED: $PATH_IN_REPO"
 done
 npm test

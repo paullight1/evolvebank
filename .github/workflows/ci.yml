@@ -1,7 +1,7 @@
-name: Sandbox tests
+name: Evolve Bank monorepo checks
 on:
   push:
-    branches: [main]
+    branches: [main, feat/independent-monorepo-20261119]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -16,4 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm test
+      - name: Verify independent source snapshots, licence files and branding
+        run: node scripts/verify-monorepo.mjs
+      - name: Run sandbox quote unit tests
+        run: npm test

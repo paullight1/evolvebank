@@ -49,7 +49,7 @@ jobs:
               '## Release gates',
               '- [ ] Review licence, changes and security advisories',
               '- [ ] Test in sandbox, including financial invariants and failure recovery',
-              '- [ ] Review update in a pull request; update gitlinks and lockfile together',
+              '- [ ] Review update in a pull request; update vendored files and lockfile together',
               '- [ ] Never automatically deploy new money-moving code',
               '',
               'Monitoring run: ' + new Date().toISOString()
