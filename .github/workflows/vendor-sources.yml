@@ -1,0 +1,23 @@
+name: One-time independent monorepo import
+on:
+  push:
+    branches:
+      - feat/independent-monorepo-20261119
+    paths:
+      - .github/workflows/vendor-sources.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+          submodules: false
+      - name: Import six licensed source snapshots as normal monorepo files
+        shell: bash
+        run: bash scripts/vendor-sources.sh

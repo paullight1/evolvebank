@@ -1,62 +1,42 @@
-# Evolve Bank — technical integration plan
+# Evolve Bank — integration and independent-monorepo plan
 
-## What is working
+## Monorepo mechanics
 
-- A responsive, Evolve-branded **static sandbox** with account views, USD→NGN demonstration conversion, and disabled withdrawals.
-- Six open-source sources linked as **pinned submodules**, **not integrated**.
-- Daily upstream-update watcher and an automated test for the illustrative quote calculator.
+Six licensed projects are **vendored as ordinary tracked source files**, not Git submodules. The monorepo contains a native Evolve sandbox app and several **separate unintegrated codebases** for evaluation. They share a Git repository but **do not yet share one runtime, dependency graph, API, database or financial ledger**. Avoid prematurely merging different ledger and settlement models.
 
 ## Architecture target
 
 ```text
-Evolve Bank Web / Mobile
-    |
-    +-- API + Customer profile / access control
-    |      +-- KYC/KYB / sanctions and fraud checks (approved provider)
-    |      +-- User balance projection
-    |      +-- FX quote / quote expiry / disclosure and confirmation
-    |      +-- Withdrawal request / bank beneficiary verification
-    |      +-- Webhook authentication, deduplication and reconciliation
-    |
-    +-- SINGLE ledger of record (evaluate Blnk; do not duplicate)
-    +-- Licensed bank/payment partners (account issuing, FX, NGN payout)
-    +-- Queue workers, immutable audit and incident response
+Evolve web/mobile
+    -> identity/KYC/customer profile
+    -> bank & FX provider adapter (approved providers only)
+    -> payment intention orchestration + idempotency
+    -> ledger system of record (ONE, candidate: Blnk)
+    -> signed webhook/settlement reconciliation
+    -> support/admin/audit/incident response
 ```
 
-## Phase 0 — licensing, due diligence and business model
+## Priorities
 
-- Verify legal ability to market Evolve Bank and distribute the service.
-- Agree which entity owns customer relationship and who safeguards customer money.
-- Get *written* approval for USD account issuance, eligible residency/beneficiaries, conversion and NGN payouts.
-- Agree funding routes, FX limits, rate quote lifecycle, settlement delays, chargebacks, error remedies and SLA.
+1. Regulatory and partner due diligence: confirm precisely which legal entity supplies foreign receiving accounts, permits customers to convert currency, safeguards funds, and disburses NGN.
+2. User registration, customer onboarding/KYC, sanctions/AML screening, account and recipient verification.
+3. Approved provider sandbox integration; deterministic intent state machine, clear quoted FX rates, fees, quote expiry and retry handling.
+4. Select and integrate exactly **one** ledger-of-record solution; use integer minor units, balanced entries, no overdrafts, and an audit log.
+5. Secure provider webhooks, deduplication, refund paths, reconciliation, alerts, administrator control and dispute handling.
+6. Independent security audit, financial invariants, privacy review, fraud controls and test evidence before real-money release.
 
-## Phase 1 — one working provider in sandbox
+### Source roles
 
-- Define provider-agnostic API and immutable intent states (created, quoted, approved, funding, converting, payout_pending, settled, failed, refunded).
-- Introduce customer onboarding and sanctions/AML gates.
-- Integrate one **sandbox** issuer/FX/payout provider only after commercial eligibility check.
-- Verify incoming transfers with authenticated webhooks and independent provider status lookup.
+- **NeoBank** and **Flux**: demo UI and workflow references; portfolio simulations do not provide real USD accounts.
+- **Blnk**: a ledger candidate.
+- **Fineract**: a separately evaluated alternative core; not to be run alongside Blnk as competing sources of customer balances.
+- **Kudi Arc**: crypto/testnet research; disabled from fiat banking launch.
+- **Corridor-in-a-Box**: cross-border orchestration reference; real payout partner confirmation not established here.
 
-## Phase 2 — one financial ledger
+## Branding status
 
-- Choose one system of record. Blnk is a candidate. Fineract is an alternative, **not a second ledger**.
-- Post double-entry movements in the correct currency using integer minor units.
-- Enforce idempotency and concurrency safety; ensure no overdraw or duplicate external payouts.
-- Reconcile provider balances and settlement reports daily. Test partial failure and retry.
+The native `apps/portal` is branded Evolve Bank. `scripts/brand_upstreams.py --apply` is a limited UI-brand overlay for NeoBank and Flux, **not** a universal bank/provider connector or systematic brand migration. Original legal notices and sandbox warnings remain.
 
-## Phase 3 — real-money gate
+## Release gate
 
-- Complete independent security, privacy and regulatory review; red-team access control.
-- Run end-to-end reconciliation, dispute handling, penetration testing and incident drills.
-- Add customer support, monitoring, FX disclosures, limits and audit retention.
-- Only enable real transactions once a regulated partner has approved the integration.
-
-## Source roles
-
-- **NeoBank / Flux:** independently runnable reference apps and UX patterns, not real-world bank rails.
-- **Blnk:** candidate live ledger after integration and review.
-- **Fineract:** optional alternative core, excluded from the initial critical path.
-- **Corridor:** transfer-state-machine/recovery reference, not a proven payable corridor.
-- **Kudi Arc:** testnet crypto research. Keep separate from fiat banking and disabled in consumer sandbox.
-
-**No live banking integration, legal approval, real money service or production-grade security certification is implied by this repository.**
+Do not enable genuine cash-in, FX execution, wallet funding, or bank withdrawals until signed partner agreements, compliant permissions and full end-to-end security and settlement tests exist.
