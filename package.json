@@ -1,0 +1,14 @@
+{
+  "name": "evolvebank-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evolve Bank licensed-source monorepo with sandbox customer portal and pinned upstream references",
+  "scripts": {
+    "start:portal": "node apps/portal/server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

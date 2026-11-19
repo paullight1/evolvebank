@@ -1,0 +1,72 @@
+name: Monitor upstream banking projects
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare pinned commits with upstream branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const sources = JSON.parse(fs.readFileSync('upstreams.lock.json', 'utf8')).sources;
+            const updates = [];
+            const errors = [];
+            for (const source of sources) {
+              const [owner, repo] = source.repository.split('/');
+              try {
+                const response = await github.rest.repos.getBranch({owner, repo, branch: source.branch});
+                const remoteSha = response.data.commit.sha;
+                if (remoteSha !== source.sha) updates.push({
+                  source: source.repository, path: source.path, pinned: source.sha,
+                  available: remoteSha, branch: source.branch
+                });
+              } catch (err) {
+                errors.push(source.repository + ': ' + String(err.message || err));
+              }
+            }
+            if (updates.length === 0 && errors.length === 0) {
+              core.info('No upstream changes detected.');
+              return;
+            }
+            const lines = [
+              '# Evolve Bank upstream review',
+              'This issue reports source changes. It does **not** mean the projects have been upgraded, audited or integrated.',
+              '',
+              '## New upstream heads',
+              ...updates.map(u => '- [ ] **' + u.source + '** (' + u.path + ') — pinned `' + u.pinned.slice(0,12) + '` → head `' + u.available.slice(0,12) + '` ([compare](https://github.com/' + u.source + '/compare/' + u.pinned + '...' + u.available + '))'),
+              '',
+              '## Check failures',
+              ...(errors.length ? errors.map(e => '- ' + e) : ['None']),
+              '',
+              '## Release gates',
+              '- [ ] Review licence, changes and security advisories',
+              '- [ ] Test in sandbox, including financial invariants and failure recovery',
+              '- [ ] Review update in a pull request; update gitlinks and lockfile together',
+              '- [ ] Never automatically deploy new money-moving code',
+              '',
+              'Monitoring run: ' + new Date().toISOString()
+            ];
+            const body = lines.join('\n');
+            const title = 'Review upstream dependency updates';
+            const {owner, repo} = context.repo;
+            const list = await github.paginate(github.rest.issues.listForRepo,{owner,repo,state:'open',per_page:100});
+            const current = list.find(i => !i.pull_request && i.title === title);
+            if (current) {
+              // Avoid noisy changes unless the actual SHA changes:
+              const normalized = s => String(s || '').replace(/Monitoring run: .*/g,'Monitoring run: (timestamp)');
+              if (normalized(current.body) !== normalized(body)) {
+                await github.rest.issues.update({owner,repo,issue_number:current.number,body});
+              }
+              core.info('Upstream review issue #' + current.number);
+            } else {
+              const created = await github.rest.issues.create({owner,repo,title,body});
+              core.info('Created review issue #' + created.data.number);
+            }

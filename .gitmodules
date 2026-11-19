@@ -1,0 +1,18 @@
+[submodule "upstreams/neobank"]
+	path = upstreams/neobank
+	url = https://github.com/dawidolko/NeoBank-Platform-Nuxt.git
+[submodule "upstreams/flux"]
+	path = upstreams/flux
+	url = https://github.com/SamABZD/flux.git
+[submodule "upstreams/blnk"]
+	path = upstreams/blnk
+	url = https://github.com/blnkfinance/blnk.git
+[submodule "upstreams/fineract"]
+	path = upstreams/fineract
+	url = https://github.com/apache/fineract.git
+[submodule "upstreams/kudiarc"]
+	path = upstreams/kudiarc
+	url = https://github.com/KudiArc/kudi-arc.git
+[submodule "upstreams/corridor"]
+	path = upstreams/corridor
+	url = https://github.com/corridor-in-a-box/corridor-in-a-box.git

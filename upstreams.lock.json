@@ -1,0 +1,62 @@
+{
+  "project": "Evolve Bank",
+  "environment": "SANDBOX_ONLY",
+  "updated": "2026-11-19",
+  "policy": "Pinned commits only. Review licences, dependencies and integration tests before updating.",
+  "sources": [
+    {
+      "id": "neobank",
+      "path": "upstreams/neobank",
+      "repository": "dawidolko/NeoBank-Platform-Nuxt",
+      "branch": "main",
+      "sha": "a377866a392c3b81af46a989681e8d8b32b572ba",
+      "license": "MIT",
+      "role": "Retail banking demo UI and double-entry ledger reference"
+    },
+    {
+      "id": "flux",
+      "path": "upstreams/flux",
+      "repository": "SamABZD/flux",
+      "branch": "main",
+      "sha": "12609beea9f97de285d88e7e28f4087e74914b01",
+      "license": "MIT",
+      "role": "Multicurrency finance UX reference"
+    },
+    {
+      "id": "blnk",
+      "path": "upstreams/blnk",
+      "repository": "blnkfinance/blnk",
+      "branch": "main",
+      "sha": "64713a5af5cb90ca69f7b29d652fa5bba344df53",
+      "license": "Apache-2.0",
+      "role": "Candidate ledger system of record"
+    },
+    {
+      "id": "fineract",
+      "path": "upstreams/fineract",
+      "repository": "apache/fineract",
+      "branch": "develop",
+      "sha": "88e625cbe1cbe3c3fcfccce2df2ab4b2c1c8a09b",
+      "license": "Apache-2.0",
+      "role": "Alternative full core banking system; evaluation only"
+    },
+    {
+      "id": "kudiarc",
+      "path": "upstreams/kudiarc",
+      "repository": "KudiArc/kudi-arc",
+      "branch": "main",
+      "sha": "8aa74ae472cec381accfab227c9e1a4caae1ed68",
+      "license": "MIT",
+      "role": "Crypto FX/remittance sandbox research; not live"
+    },
+    {
+      "id": "corridor",
+      "path": "upstreams/corridor",
+      "repository": "corridor-in-a-box/corridor-in-a-box",
+      "branch": "main",
+      "sha": "51f3851a078200bea370b3cf3145ec7cd1fd0653",
+      "license": "Apache-2.0",
+      "role": "Cross-border transfer state-machine reference"
+    }
+  ]
+}
