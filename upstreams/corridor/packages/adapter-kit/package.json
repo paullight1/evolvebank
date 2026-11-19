@@ -1,0 +1,46 @@
+{
+  "name": "@corridor/adapter-kit",
+  "version": "0.1.0",
+  "description": "Port and helpers for implementing a Stellar anchor adapter: the AnchorAdapter interface, SEP-10 and SEP-12 clients, and a conformance harness.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corridor-in-a-box/corridor-in-a-box.git",
+    "directory": "packages/adapter-kit"
+  },
+  "bugs": {
+    "url": "https://github.com/corridor-in-a-box/corridor-in-a-box/issues"
+  },
+  "homepage": "https://github.com/corridor-in-a-box/corridor-in-a-box#readme",
+  "keywords": [
+    "stellar",
+    "corridor",
+    "adapter",
+    "anchor",
+    "sep-10",
+    "sep-12"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@corridor/types": "workspace:*",
+    "@corridor/manifest": "workspace:*"
+  }
+}

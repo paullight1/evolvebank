@@ -1,0 +1,121 @@
+# Probe every anchor in contracts/anchors.json and record what was found in the
+# on-chain registry.
+#
+# This replaces the old nightly-live-anchor job, which passed green while
+# skipping every test because its secrets were never configured — a check that
+# cannot fail is not a check. This one is different in two ways:
+#
+#   1. It FAILS if a probe cannot run, rather than skipping silently.
+#   2. It does not fail when an anchor turns out to be broken. Recording that an
+#      anchor stopped serving SEP-31 is the job working, not the job breaking.
+#      The registry exists to say true things, including unflattering ones.
+#
+# Without ATTESTER_SECRET the job still runs the probes and prints the results,
+# it just cannot write them — so the probe path stays continuously exercised
+# even before a signing key is configured, and the log says plainly which mode
+# it ran in.
+#
+# On scheduled runs the last step is `pnpm registry:staleness`
+# (examples/check-staleness.ts). It reads every domain in contracts/anchors.json
+# back from the registry and FAILS the run, with a ::error:: per domain, if one
+# was never attested or was last attested more than MAX_STALENESS_LEDGERS ago
+# (default ~2 days). That catches the case the secret check cannot: a secret
+# that is set but whose attestations keep failing or being skipped.
+name: attest-anchors
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      domains:
+        description: "Space-separated domains to probe (default: contracts/anchors.json)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    # Job-level so the `if:` conditions below can see it. A step-level env is not
+    # in scope for that step's own `if:`.
+    env:
+      ATTESTER_SECRET: ${{ secrets.ATTESTER_SECRET }}
+      STELLAR_NETWORK: ${{ vars.STELLAR_NETWORK || 'testnet' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Probe first and always. This half needs no credentials, so it verifies
+      # the probe logic against live anchors on every run regardless of whether
+      # the registry can be written to.
+      # DOMAINS goes through `env`, never interpolated into the script body.
+      # `${{ inputs.domains }}` inline in a `run:` block is a shell injection:
+      # this job carries ATTESTER_SECRET, so anyone able to dispatch it could
+      # run arbitrary commands with the registry signing key in scope.
+      - name: Probe anchors
+        env:
+          DOMAINS: ${{ inputs.domains }}
+        run: |
+          domains="$DOMAINS"
+          if [ -z "$domains" ]; then
+            pnpm sweep:anchors --out sweep/
+          else
+            pnpm sweep:anchors --out sweep/ $domains
+          fi
+
+      # The step summary and the artifact are published even when a probe step
+      # failed, so the run page still shows what was found. `sweep.json` in the
+      # artifact is exactly what the submit step attests: one observation per
+      # domain, not a second probe.
+      - name: Publish sweep summary
+        if: always()
+        run: |
+          if [ -f sweep/sweep.md ]; then
+            cat sweep/sweep.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sweep artifact
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: anchor-sweep-${{ github.run_id }}
+          path: sweep/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Submit attestations
+        if: ${{ env.ATTESTER_SECRET != '' }}
+        run: pnpm attest --from sweep/sweep.json
+
+      # Unset secret on a MANUAL run is a fair state — someone is exercising the
+      # probe path on purpose. Unset on the SCHEDULE is not: the only reason
+      # this job runs nightly is to keep the on-chain registry fresh, so a
+      # scheduled run that writes nothing and reports success is precisely the
+      # "check that cannot fail" this workflow was written to replace. The
+      # registry silently went a week stale behind a green cron before this
+      # step told the truth about it.
+      - name: Fail a scheduled run that cannot write
+        if: ${{ env.ATTESTER_SECRET == '' && github.event_name == 'schedule' }}
+        run: |
+          echo "::error::ATTESTER_SECRET is not set, so this scheduled run probed" \
+               "the anchors but wrote nothing on chain. The registry is going" \
+               "stale. Set the secret to an enrolled attester key."
+          exit 1
+
+      - name: Note when attestation is not configured
+        if: ${{ env.ATTESTER_SECRET == '' && github.event_name != 'schedule' }}
+        run: |
+          echo "::warning::ATTESTER_SECRET is not set — probes ran but nothing was" \
+               "written on chain. Set the secret to an enrolled attester key to" \
+               "keep the registry fresh."
+
+      - name: Verify registry freshness
+        if: ${{ github.event_name == 'schedule' }}
+        run: pnpm registry:staleness

@@ -1,0 +1,48 @@
+{
+  "name": "@corridor/engine",
+  "version": "0.1.0",
+  "description": "Corridor payment engine: the settlement state machine, pre-settle gate, idempotency, circuit breaker and audit trail.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corridor-in-a-box/corridor-in-a-box.git",
+    "directory": "packages/engine"
+  },
+  "bugs": {
+    "url": "https://github.com/corridor-in-a-box/corridor-in-a-box/issues"
+  },
+  "homepage": "https://github.com/corridor-in-a-box/corridor-in-a-box#readme",
+  "keywords": [
+    "stellar",
+    "corridor",
+    "engine",
+    "state-machine",
+    "settlement",
+    "audit"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@corridor/types": "workspace:*",
+    "@corridor/manifest": "workspace:*",
+    "@corridor/adapter-kit": "workspace:*",
+    "@corridor/router": "workspace:*"
+  }
+}

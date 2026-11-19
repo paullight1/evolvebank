@@ -1,0 +1,46 @@
+{
+  "name": "@corridor/sep6",
+  "version": "0.1.0",
+  "description": "SEP-6 (deposit and withdrawal) anchor adapter for the corridor engine.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corridor-in-a-box/corridor-in-a-box.git",
+    "directory": "packages/sep6"
+  },
+  "bugs": {
+    "url": "https://github.com/corridor-in-a-box/corridor-in-a-box/issues"
+  },
+  "homepage": "https://github.com/corridor-in-a-box/corridor-in-a-box#readme",
+  "keywords": [
+    "stellar",
+    "corridor",
+    "sep-6",
+    "anchor",
+    "adapter"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@corridor/adapter-kit": "workspace:*",
+    "@corridor/manifest": "workspace:*",
+    "@corridor/types": "workspace:*"
+  }
+}

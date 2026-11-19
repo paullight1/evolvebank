@@ -1,0 +1,47 @@
+{
+  "name": "@corridor/manifest",
+  "version": "0.1.0",
+  "description": "Load, validate and score corridor manifests (YAML) that describe a Stellar cross-border corridor as configuration.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corridor-in-a-box/corridor-in-a-box.git",
+    "directory": "packages/manifest"
+  },
+  "bugs": {
+    "url": "https://github.com/corridor-in-a-box/corridor-in-a-box/issues"
+  },
+  "homepage": "https://github.com/corridor-in-a-box/corridor-in-a-box#readme",
+  "keywords": [
+    "stellar",
+    "corridor",
+    "manifest",
+    "yaml",
+    "corridor"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@corridor/probe": "workspace:*",
+    "@corridor/types": "workspace:*",
+    "zod": "^4.6.5",
+    "yaml": "^2.9.1"
+  }
+}
