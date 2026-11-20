@@ -1,0 +1,81 @@
+name: evolve-sandbox
+x-blnk-env: &blnk-env
+  BLNK_PROJECT_NAME: Evolve Sandbox
+  BLNK_DATA_SOURCE_DNS: postgres://postgres:${POSTGRES_PASSWORD:?Run npm run setup:sandbox first}@postgres:5432/blnk?sslmode=disable
+  BLNK_REDIS_DNS: redis:6379
+  BLNK_SERVER_PORT: "5001"
+  BLNK_SERVER_SECURE: "true"
+  BLNK_SERVER_SECRET_KEY: ${BLNK_API_KEY:?Run npm run setup:sandbox first}
+  BLNK_ENABLE_TELEMETRY: "false"
+  BLNK_ENABLE_OBSERVABILITY: "false"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evolve
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/01-evolve.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d evolve"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.2.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  blnk:
+    build:
+      context: ./upstreams/blnk
+      dockerfile: ../../infra/blnk.Dockerfile
+    environment: *blnk-env
+    command: ["sh", "-c", "blnk migrate up && exec blnk start"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5001/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 10s
+  worker:
+    build:
+      context: ./upstreams/blnk
+      dockerfile: ../../infra/blnk.Dockerfile
+    environment: *blnk-env
+    command: ["blnk", "workers"]
+    depends_on:
+      blnk: { condition: service_healthy }
+  app:
+    build: .
+    environment:
+      APP_ENV: sandbox
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/evolve
+      BLNK_URL: http://blnk:5001
+      BLNK_API_KEY: ${BLNK_API_KEY}
+      SANDBOX_WEBHOOK_SECRET: ${SANDBOX_WEBHOOK_SECRET:?Run npm run setup:sandbox first}
+      TRUSTED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173
+      COOKIE_SECURE: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      blnk: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+volumes:
+  postgres-data:
+  redis-data:

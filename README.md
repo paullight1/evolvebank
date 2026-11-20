@@ -7,7 +7,12 @@
 ## Repository structure
 
 ```text
-apps/portal/                   Evolve Bank responsive demo / simulated FX quote
+apps/portal/                   Unified React customer sandbox
+apps/api/                      NestJS sessions, banking API and signed event receiver
+packages/banking/              Exact money, quote and payout workflow rules
+packages/ledger/               Blnk adapter; authoritative runtime balances
+packages/storage/              PostgreSQL workflow metadata and advisory locks
+compose.yaml                   Local app + PostgreSQL + Redis + pinned-source Blnk
 upstreams/neobank/             Full NeoBank project source snapshot (MIT)
 upstreams/flux/                Full Flux project source snapshot (MIT)
 upstreams/blnk/                Full Blnk ledger source snapshot (Apache-2.0)
@@ -26,23 +31,67 @@ docs/                          Integration plan, licence and provenance
 
 The original projects' names remain in their copyright/licence notices and technical provenance. Evolve Bank's own presentation layer uses Evolve branding. Original demos and FX example flows remain **sandbox-only**, and none of the sources are a ready-to-launch regulated bank.
 
-## Start Evolve portal
+## Start the unified sandbox
 
-Node.js 20+:
+Node.js 22.12+ and Docker with Compose are required. The containers use Node 24. From a fresh clone:
 
 ```bash
 git clone https://github.com/paullight1/evolvebank.git
 cd evolvebank
-npm test
-npm run start:portal
-# Visit http://localhost:4173
+npm run setup:sandbox
+docker compose up --build --wait
+# Visit http://localhost:3000
 ```
 
-The portal uses a **deliberately fictitious** `$1 = ₦1,000` rate and a `$1` demonstration fee. No funds move, and withdrawal actions are disabled.
+Setup generates fresh local secrets in the ignored `.env` file and preserves an existing configuration. The first container build compiles the pinned Blnk source; subsequent builds reuse the cache. Only the application is exposed, on loopback port 3000. `docker compose stop` preserves the PostgreSQL and Redis volumes.
+
+### Try the complete flow
+
+1. Select **Open sandbox** to create an isolated anonymous demo customer.
+2. Add **$100.00** of demo USD.
+3. Open **Exchange**, request a quote, and confirm before its two-minute expiry.
+4. At the deliberately fictitious **₦1,000 per USD** rate, a **$1 fee** leaves **₦99,000.00** in the demo NGN wallet.
+5. Request a **₦99,000.00** demo payout to a fictional recipient label. Funds move to a reserved balance.
+6. Choose **Simulate failure** to return the reservation, or **Simulate success** to complete it.
+7. Run **Reconcile** and inspect transaction history. Pending funds remain unspendable.
+
+These are simulated ledger movements only. No receiving account numbers, real bank beneficiaries, external payment providers, or real funds are involved.
+
+### Implemented in Phase 2.1
+
+- One responsive React portal and one NestJS API, using the existing Evolve brand colours.
+- Anonymous 24-hour demo sessions with HTTP-only cookies and isolated customers.
+- Blnk-backed USD/NGN wallets, same-currency atomic FX entries, explicit fees and payout reservations.
+- Persistent operation intentions, stable posting references, idempotent retries, quote ownership/expiry and safe recovery after lost responses.
+- Simulated payout success/failure with signed raw-body event verification, event deduplication and immutable terminal outcomes.
+- Reconciliation against actual Blnk postings, customer balances and simulated provider statements; detected discrepancies gate new money actions.
+- PostgreSQL advisory locks across API workers and database connection recovery.
+
+### Development and verification
+
+```bash
+npm ci --ignore-scripts
+npm run typecheck
+npm run build
+npm test
+npm run verify:sources
+# With the Compose stack running:
+npm run test:stack
+npx playwright install chromium
+npm run test:e2e
+```
+
+The test suite includes a disposable native PostgreSQL instance, financial invariants, HTTP API isolation/signatures and Blnk contract checks. CI additionally builds the pinned Blnk source, executes the real stack, restarts the API/ledger, and runs desktop/mobile browser journeys. Browser evidence is attached to the workflow run.
+
+For frontend development, `npm run start:portal` serves Vite at port 4173 and proxies `/api` to the API at port 3000. For API development outside Compose, configure `APP_ENV=sandbox`, `DATABASE_URL`, `BLNK_URL`, `BLNK_API_KEY` and `SANDBOX_WEBHOOK_SECRET`, then run `npm run dev:api`. Runtime balances always come from Blnk; memory adapters are test-only.
+
+See [sandbox API and operations guide](docs/SANDBOX_API.md), [design](docs/superpowers/specs/2026-11-20-unified-sandbox-design.md) and [implementation plan](docs/superpowers/plans/2026-11-20-unified-sandbox.md).
 
 ## Core banking architecture
 
-Choose **one** ledger of record, tentatively Blnk; treat Fineract as an alternative, not a second balance authority. Use approved financial institutions for real USD receiving accounts, currency conversion and NGN payouts. Follow [integration plan](docs/INTEGRATION_PLAN.md) for KYC, regulatory obligations, provider reconciliation, and release gates.
+Blnk is the **single ledger of record in the sandbox**; PostgreSQL stores workflow metadata, not independently spendable balances. Fineract remains a separate alternative. The stack builds from `upstreams/blnk` at the revision in `upstreams.lock.json`, instead of assuming an upstream image tag matches that snapshot. Follow [integration plan](docs/INTEGRATION_PLAN.md) for the later provider, identity and release work.
+
+The demo-session mechanism is not production authentication or KYC. Production identity/MFA, regulated provider accounts, actual statement reconciliation, fraud controls, administrator approvals and independent security review remain outside Phase 2.1. Keep the local stack private; this is not a public production deployment configuration.
 
 ## Responsible source reuse
 
