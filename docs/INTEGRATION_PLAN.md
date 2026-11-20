@@ -2,7 +2,7 @@
 
 ## Monorepo mechanics
 
-Six licensed projects are **vendored as ordinary tracked source files**, not Git submodules. The monorepo contains a native Evolve sandbox app and several **separate unintegrated codebases** for evaluation. They share a Git repository but **do not yet share one runtime, dependency graph, API, database or financial ledger**. Avoid prematurely merging different ledger and settlement models.
+Six licensed projects are **vendored as ordinary tracked source files**, not Git submodules. The imported reference projects remain separate; the native Evolve application now integrates the React portal, NestJS API, PostgreSQL workflow storage and pinned Blnk ledger. Other upstream runtimes do not independently own Evolve customer balances. Phase 2.1 covers simulated funds only; the provider and launch priorities below remain open.
 
 ## Architecture target
 

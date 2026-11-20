@@ -1,14 +1,47 @@
 {
   "name": "evolvebank-workspace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Evolve Bank licensed-source monorepo with sandbox customer portal and pinned upstream references",
   "scripts": {
-    "start:portal": "node apps/portal/server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "start:portal": "vite --config apps/portal/vite.config.ts",
+    "start:api": "node dist/server/apps/api/src/main.js",
+    "dev:api": "tsx watch apps/api/src/main.ts",
+    "build": "npm run build:api && npm run build:portal",
+    "build:api": "tsc -p tsconfig.server.json",
+    "build:portal": "vite build --config apps/portal/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p apps/portal/tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "verify:sources": "node scripts/verify-monorepo.mjs",
+    "test:stack": "node --import tsx scripts/smoke-stack.ts",
+    "setup:sandbox": "node scripts/setup-sandbox.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.6.0",
+    "@nestjs/core": "12.6.0",
+    "@nestjs/platform-express": "12.6.0",
+    "pg": "8.23.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "@types/express": "5.0.6",
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "embedded-postgres": "18.7.0-beta.19",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vite": "8.3.8"
   }
 }
