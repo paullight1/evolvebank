@@ -142,7 +142,7 @@ export default function App() {
     if (invalid) { setError(invalid); return; }
     if (inFlight.current || intent) return;
     inFlight.current = true; setBusy('quote'); setError(''); setNotice('');
-    try { setQuote(await request<Quote>('/quotes', { method: 'POST', body: { amount: exchangeAmount } })); }
+    try { const nextQuote = await request<Quote>('/quotes', { method: 'POST', body: { amount: exchangeAmount } }); setNow(Date.now()); setQuote(nextQuote); }
     catch (err) { setQuote(undefined); setError(errorMessage(err)); }
     finally { inFlight.current = false; setBusy(''); }
   }

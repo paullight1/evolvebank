@@ -49,18 +49,20 @@
 
 - [x] Build responsive React overview, funding, exchange, payout/history and reconciliation views in `apps/portal`.
 - [x] Connect every action to the documented API; retain idempotency keys through retries and show pending/failure states clearly.
-- [ ] Verify complete customer flow at desktop and mobile widths with browser evidence.
+- [x] Verify complete customer flow at desktop and mobile widths with browser evidence.
 
 ### 5. Review and delivery
 
 - [x] Run typecheck, production build, financial/API/adapter tests and source-provenance verification.
 - [x] Obtain independent code review and resolve material defects.
-- [ ] Commit and push isolated branch; open a pull request with evidence and precise limitations.
+- [x] Commit and push isolated branch; open a pull request with evidence and precise limitations.
 
-## Verification recorded before publication
+## Verification evidence
 
 - Typecheck, API and portal production builds, 47 tests, source snapshot verification, and `git diff --check` passed.
 - A real PostgreSQL, Redis, pinned-source Blnk and NestJS stack completed the $100 → ₦99,000 journey, failure/retry/success, reconciliation with zero differences, and an API/ledger restart.
 - Real ledger fault checks recovered two deliberately lost posting responses and verified compensation after an atomic bulk rollback.
 - Independent review identified and resolved JSONB key-order-sensitive ledger fingerprints, mixed-case API guard bypasses, and the development portal origin allowlist.
-- Desktop/mobile browser journeys and saved-intent recovery are wired into CI. Local browser execution is restricted in this workspace; CI evidence is pending.
+- GitHub Actions verified the real Compose stack, restart/replay, lost responses, atomic rollback, and all four desktop/mobile browser tests (complete journey and saved-intent recovery at each viewport). [First complete passing run](https://github.com/paullight1/evolvebank/actions/runs/44779161342).
+- Desktop and mobile screenshots were visually inspected; the unfocused skip link was clipped to avoid full-page capture artifacts, and the quote clock is refreshed when a new quote arrives.
+- Implementation is proposed in [pull request #3](https://github.com/paullight1/evolvebank/pull/3). The PR checks record the latest commit verification; main has not been merged or deployed.
